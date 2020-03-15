@@ -1,0 +1,293 @@
+[
+    {
+        "options": {
+            "other": {
+                "value": [
+                    {
+                        "type": 0,
+                        "value": 1
+                    },
+                    {
+                        "options": {
+                            "other": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " and ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "type": 7
+                                    },
+                                    {
+                                        "value": " other people to their party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=2": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " and one other person to their party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=1": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " to their party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=0": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " does not give a party.",
+                                        "type": 0
+                                    }
+                                ]
+                            }
+                        },
+                        "offset": 1,
+                        "value": "num_guests",
+                        "pluralType": "cardinal",
+                        "type": 6
+                    }
+                ]
+            },
+            "male": {
+                "value": [
+                    {
+                        "type": 0,
+                        "value": 1
+                    },
+                    {
+                        "options": {
+                            "other": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " and ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "type": 7
+                                    },
+                                    {
+                                        "value": " other people to his party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=2": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " and one other person to his party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=1": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " to his party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=0": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " does not give a party.",
+                                        "type": 0
+                                    }
+                                ]
+                            }
+                        },
+                        "offset": 1,
+                        "value": "num_guests",
+                        "pluralType": "cardinal",
+                        "type": 6
+                    }
+                ]
+            },
+            "female": {
+                "value": [
+                    {
+                        "type": 0,
+                        "value": 1
+                    },
+                    {
+                        "options": {
+                            "other": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " and ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "type": 7
+                                    },
+                                    {
+                                        "value": " other people to her party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=2": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " and one other person to her party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=1": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " invites ",
+                                        "type": 0
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " to her party.",
+                                        "type": 0
+                                    }
+                                ]
+                            },
+                            "=0": {
+                                "value": [
+                                    {
+                                        "value": "host",
+                                        "type": 1
+                                    },
+                                    {
+                                        "value": " does not give a party.",
+                                        "type": 0
+                                    }
+                                ]
+                            }
+                        },
+                        "offset": 1,
+                        "value": "num_guests",
+                        "pluralType": "cardinal",
+                        "type": 6
+                    }
+                ]
+            }
+        },
+        "type": 5,
+        "value": "gender_of_host"
+    }
+]
