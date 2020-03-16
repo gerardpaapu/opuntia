@@ -1,25 +1,19 @@
 module Cactus.PseudoTranslate (pseudoTranslate) where
 
 import Prelude
-
 import Control.Monad.State (State, evalState, get, put)
 import Data.Array.NonEmpty (NonEmptyArray, (!!))
 import Data.Array.NonEmpty as NonEmpty
-import Data.Bifunctor (lmap)
 import Data.Char (fromCharCode)
 import Data.Char.Unicode (isAlpha, isLatin1)
-import Data.Either (Either)
 import Data.Foldable (sum)
 import Data.Int (rem)
-import Data.List.NonEmpty (head)
 import Data.Maybe (Maybe(..), fromJust, fromMaybe)
 import Data.String (CodePoint, Pattern(..))
 import Data.String.CodePoints as String
 import Data.String.CodeUnits as CodeUnits
 import Data.Traversable (traverse)
 import Data.Unfoldable (range, replicate)
-import Effect.Exception (Error, error)
-import Foreign (MultipleErrors, renderForeignError)
 import FormatJS.IntlMessageFormat (MessageFormatPattern(..), MessageFormatElement(..))
 import Partial.Unsafe (unsafePartial)
 import Random.LCG as LCG
@@ -43,9 +37,6 @@ pseudoTranslate ast = do
     seed = sum $ String.length <$> ast
   bracketify $ evalState cmp (LCG.mkSeed seed)
 
-collectErrors :: Either MultipleErrors ~> Either Error
-collectErrors = lmap (head >>> renderForeignError >>> error)
-
 bracketify :: MessageFormatPattern String -> MessageFormatPattern String
 bracketify (MessageFormatPattern s) = MessageFormatPattern parts
   where
@@ -56,13 +47,12 @@ bracketify (MessageFormatPattern s) = MessageFormatPattern parts
 
   literal value = LiteralElement { value, location: Nothing }
 
-  
 -- TODO: could use a static list here probably and it would be a bit
 --       less confusing
 combiners :: NonEmptyArray Char
 combiners =
   unsafePartial
-    ((range 0x0300 0x034E <> range 0x0350 0x036F <> range 0x0FE20 0x0FE23)
+    ( (range 0x0300 0x034E <> range 0x0350 0x036F <> range 0x0FE20 0x0FE23)
         # traverse fromCharCode
         >>= NonEmpty.fromArray
         # fromJust

@@ -1,12 +1,15 @@
 module Main where
 
 import Prelude
+
 import Cactus.PseudoTranslate (pseudoTranslate)
-import Data.Either (either)
 import Effect (Effect)
-import Effect.Console (log)
-import Effect.Exception (throw)
+import Effect.Aff (Aff, launchAff_)
+import Effect.Class (liftEffect)
+import Effect.Console as Console
 import FormatJS.IntlMessageFormat as Intl
+import Node.Encoding (Encoding(..))
+import Node.FS.Aff as FS
 
 example :: String
 example =
@@ -31,8 +34,11 @@ example =
       other {{host} invites {guest} and # other people to their party.}}}}"""
 
 main :: Effect Unit
-main = do
-  ast <- either (throw <<< show) pure $ Intl.parse example
-  let
-    ast' = pseudoTranslate ast
-  log $ Intl.print ast'
+main = launchAff_ do
+  src <- FS.readTextFile UTF8 "example.json"
+  obj <- Intl.readMessages src
+  log $ Intl.writeMessages (pseudoTranslate <$> obj)
+
+log :: String -> Aff Unit
+log = liftEffect <<< Console.log
+

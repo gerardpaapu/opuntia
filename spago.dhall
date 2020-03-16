@@ -7,6 +7,7 @@ You can edit this file as you like.
   [ "console"
   , "effect"
   , "lcg"
+  , "node-fs-aff"
   , "psci-support"
   , "simple-json"
   , "unfoldable"
