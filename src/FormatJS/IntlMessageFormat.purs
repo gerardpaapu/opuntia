@@ -73,6 +73,8 @@ instance traversableMFP :: Traversable MessageFormatPattern where
                 v <- traverse intoElement value
                 in r { value = v }
         in PluralElement (r { options = options' })
+
+      -- TODO: figure out how to remove this duplication
       SelectElement r@{ options } -> ado
         options' <-
           options

@@ -1,6 +1,7 @@
 module Cactus.PseudoTranslate (pseudoTranslate) where
 
 import Prelude
+
 import Control.Monad.State (State, evalState, get, put)
 import Data.Array.NonEmpty (NonEmptyArray, (!!))
 import Data.Array.NonEmpty as NonEmpty
@@ -11,7 +12,7 @@ import Data.Either (Either)
 import Data.Foldable (sum)
 import Data.Int (rem)
 import Data.List.NonEmpty (head)
-import Data.Maybe (Maybe(..), fromJust)
+import Data.Maybe (Maybe(..), fromJust, fromMaybe)
 import Data.String (CodePoint, Pattern(..))
 import Data.String.CodePoints as String
 import Data.String.CodeUnits as CodeUnits
@@ -56,7 +57,8 @@ bracketify (MessageFormatPattern s) = MessageFormatPattern parts
   literal value = LiteralElement { value, location: Nothing }
 
   
--- TODO: could use a static 
+-- TODO: could use a static list here probably and it would be a bit
+--       less confusing
 combiners :: NonEmptyArray Char
 combiners =
   unsafePartial
@@ -79,12 +81,10 @@ random = do
 
 choose :: forall a. NonEmptyArray a -> Rand a
 choose arr = do
-  let
-    n = NonEmpty.length arr
   f <- random
   let
-    idx = f `rem` n
-  pure $ unsafePartial (fromJust (arr !! idx))
+    idx = f `rem` (NonEmpty.length arr)
+  pure $ fromMaybe (NonEmpty.head arr) (arr !! idx)
 
 isPlainAlpha :: CodePoint -> Boolean
 isPlainAlpha c = do
@@ -100,6 +100,8 @@ isPlainAlpha c = do
 isVowel :: CodePoint -> Boolean
 isVowel a = String.contains (Pattern $ String.singleton a) "aeiouAEIOU"
 
+-- TODO: it seems like we could change all these to `String -> Rand (String)`
+--       combiners could be NonEmptyArray String
 accentify :: CodePoint -> Rand (Array CodePoint)
 accentify c = do
   if isPlainAlpha c then do
