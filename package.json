@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-      "test": "spago test",
-      "prepare": "spago bundle-module",
-      "purty": "purty src/ --write"
+    "test": "spago test",
+    "build": "spago build",
+    "prepare": "spago bundle-module",
+    "purty": "purty src/ --write"
   },
   "author": "",
   "license": "ISC",

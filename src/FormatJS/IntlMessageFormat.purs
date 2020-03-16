@@ -1,9 +1,19 @@
 module FormatJS.IntlMessageFormat
-  ( parse, print, MessageFormatPattern
+  ( parse
+  , print
+  , MessageFormatPattern(..)
+  , MessageFormatElement(..)
+  , Location
+  , LocationDetails
+  , SimpleFormatElement
+  , DateSkeleton
+  , NumberSkeleton
+  , TimeSkeleton
+  , BaseElement
+  , PluralOrSelectOption
   ) where
 
 import Prelude
-
 import Control.Monad.Except (throwError)
 import Data.Foldable (class Foldable, foldMap, foldrDefault, foldlDefault)
 import Data.Maybe (Maybe(..))
@@ -38,14 +48,19 @@ instance foldableMFP :: Foldable MessageFormatPattern where
     where
     intoElement = case _ of
       (LiteralElement { value }) -> f value
-      (SelectElement r@{ options }) -> options # foldMap \item -> foldMap (intoElement) item.value
-      (PluralElement r@{ options }) -> options # foldMap \item -> foldMap (intoElement) item.value
+      (SelectElement r) -> intoOptions r
+      (PluralElement r) -> intoOptions r
       _ -> mempty
+
+    intoOptions :: forall r. { options :: _ | r } -> _
+    intoOptions r@{ options } =
+      options # foldMap \item -> foldMap (intoElement) item.value
   foldr f m = foldrDefault f m
   foldl f m = foldlDefault f m
 
 instance traversableMFP :: Traversable MessageFormatPattern where
-  traverse f (MessageFormatPattern arr) = MessageFormatPattern <$> traverse intoElement arr
+  traverse f (MessageFormatPattern arr) =
+    MessageFormatPattern <$> traverse intoElement arr
     where
     intoElement = case _ of
       LiteralElement { value, location } -> ado
@@ -54,9 +69,9 @@ instance traversableMFP :: Traversable MessageFormatPattern where
       PluralElement r@{ options } -> ado
         options' <-
           options
-            # traverse \{ value, location } -> ado
+            # traverse \r@{ value, location } -> ado
                 v <- traverse intoElement value
-                in { value: v, location }
+                in r { value = v }
         in PluralElement (r { options = options' })
       SelectElement r@{ options } -> ado
         options' <-
@@ -71,6 +86,7 @@ instance traversableMFP :: Traversable MessageFormatPattern where
       (TimeElement v) -> pure (TimeElement v)
       (PoundElement v) -> pure (PoundElement v)
       (TagElement v) -> pure (TagElement v)
+
   sequence = sequenceDefault
 
 derive instance functorMFP :: Functor MessageFormatPattern
@@ -109,9 +125,13 @@ data MessageFormatElement text
   | DateElement (SimpleFormatElement DateSkeleton)
   | TimeElement (SimpleFormatElement TimeSkeleton)
   | SelectElement (BaseElement ( options :: Object (PluralOrSelectOption text) ))
-  | PluralElement (BaseElement ( options :: Object (PluralOrSelectOption text)
-                               , offset :: Number
-                               , pluralType :: String))
+  | PluralElement
+    ( BaseElement
+        ( options :: Object (PluralOrSelectOption text)
+        , offset :: Number
+        , pluralType :: String
+        )
+    )
   | PoundElement Foreign
   | TagElement Foreign
 
@@ -119,11 +139,11 @@ instance showMFE :: Show a => Show (MessageFormatElement a) where
   show = case _ of
     (LiteralElement v) -> "(LiteralElement " <> show v <> ")"
     (ArgumentElement v) -> "(ArgumentElement " <> show v <> ")"
-    (NumberElement v) ->  "(NumberElement " <> writeJSON v <> ")"
+    (NumberElement v) -> "(NumberElement " <> writeJSON v <> ")"
     (DateElement v) -> "(DateElement " <> writeJSON v <> ")"
     (TimeElement v) -> "(TimeElement " <> writeJSON v <> ")"
     (SelectElement v) -> "(SelectElement " <> show v <> ")"
-    (PluralElement v) -> "(PluralElement " <> show  v <> ")"
+    (PluralElement v) -> "(PluralElement " <> show v <> ")"
     (PoundElement v) -> "(PoundElement " <> writeJSON v <> ")"
     (TagElement v) -> "(TagElement " <> writeJSON v <> ")"
 
