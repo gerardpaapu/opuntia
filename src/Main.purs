@@ -1,7 +1,6 @@
 module Main where
 
 import Prelude
-
 import Cactus.PseudoTranslate (pseudoTranslate)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
@@ -34,11 +33,11 @@ example =
       other {{host} invites {guest} and # other people to their party.}}}}"""
 
 main :: Effect Unit
-main = launchAff_ do
-  src <- FS.readTextFile UTF8 "example.json"
-  obj <- Intl.readMessages src
-  log $ Intl.writeMessages (pseudoTranslate <$> obj)
+main =
+  launchAff_ do
+    src <- FS.readTextFile UTF8 "example.json"
+    obj <- Intl.readMessages src
+    log $ Intl.writeMessages (pseudoTranslate <$> obj)
 
 log :: String -> Aff Unit
 log = liftEffect <<< Console.log
-

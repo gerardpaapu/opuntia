@@ -8,15 +8,17 @@ module FormatJS.IntlMessageFormat
   , Location
   , LocationDetails
   , SimpleFormatElement
-  , DateSkeleton
+  , DateTimeSkeleton
   , NumberSkeleton
-  , TimeSkeleton
+  , NumberSkeletonToken
   , BaseElement
   , PluralOrSelectOption
+  , StringOrElse
   ) where
 
 import Prelude
 
+import Control.Alternative ((<|>))
 import Control.Monad.Error.Class (class MonadThrow)
 import Control.Monad.Except (throwError)
 import Data.Either (either)
@@ -36,21 +38,18 @@ import Type.Prelude (SProxy(..))
 collectErrors :: MultipleErrors -> Error
 collectErrors = head >>> renderForeignError >>> error
 
-lift' :: forall m a. MonadThrow Error m => E a -> m a
-lift' = either (throwError <<< collectErrors) pure
-
 readMessages' :: String -> E (Object (MessageFormatPattern String))
 readMessages' obj = do
-    plain :: Object String <- readJSON obj
-    traverse parse plain
+  plain :: Object String <- readJSON obj
+  traverse parse plain
 
 readMessages :: forall m. MonadThrow Error m => String -> m (Object (MessageFormatPattern String))
 readMessages = lift' <<< readMessages'
+  where
+  lift' = either (throwError <<< collectErrors) pure
 
 writeMessages :: Object (MessageFormatPattern String) -> String
-writeMessages obj = do
-    let plain = print <$> obj
-    jsonStringify plain
+writeMessages obj = do jsonStringify (print <$> obj)
 
 foreign import parseImpl :: forall a. String -> (Foreign -> a) -> (Error -> a) -> a
 
@@ -58,14 +57,33 @@ foreign import printImpl :: Foreign -> String
 
 foreign import jsonStringify :: Object String -> String
 
+newtype TypeTag = TypeTag Number
+derive instance newtypeTag :: Newtype TypeTag _
+derive newtype instance eqTypeTag :: Eq TypeTag
+derive newtype instance readForeign :: ReadForeign TypeTag
+derive newtype instance writeForeign :: WriteForeign TypeTag
+
+foreign import type_literal :: TypeTag
+foreign import type_argument :: TypeTag
+foreign import type_number :: TypeTag
+foreign import type_date :: TypeTag
+foreign import type_time :: TypeTag
+foreign import type_select :: TypeTag
+foreign import type_plural :: TypeTag
+foreign import type_pound :: TypeTag
+foreign import type_tag :: TypeTag
+
+foreign import skeleton_type_number :: TypeTag
+foreign import skeleton_type_dateTime :: TypeTag
+
+
 print :: (MessageFormatPattern String) -> String
 print ast = printImpl (write ast)
 
 parse :: String -> E (MessageFormatPattern String)
 parse s = parseImpl s read throwAsForeign
-
-throwAsForeign :: forall a b c. MonadThrow (c ForeignError) a => Applicative c => Error -> a b
-throwAsForeign e = throwError (pure $ ForeignError (message e))
+  where
+  throwAsForeign e = throwError (pure $ ForeignError (message e))
 
 newtype MessageFormatPattern text
   = MessageFormatPattern (Array (MessageFormatElement text))
@@ -79,10 +97,11 @@ instance foldableMFP :: Foldable MessageFormatPattern where
       (LiteralElement { value }) -> f value
       (SelectElement r) -> intoOptions r
       (PluralElement r) -> intoOptions r
+      (TagElement { children }) -> foldMap intoElement children
       _ -> mempty
 
     intoOptions :: forall r. { options :: _ | r } -> _
-    intoOptions r@{ options } = options # foldMap \item -> foldMap (intoElement) item.value
+    intoOptions r@{ options } = options # foldMap \item -> foldMap intoElement item.value
   foldr f m = foldrDefault f m
   foldl f m = foldlDefault f m
 
@@ -108,12 +127,16 @@ instance traversableMFP :: Traversable MessageFormatPattern where
                 v <- traverse intoElement value
                 in { value: v, location }
         in SelectElement (r { options = options' })
+
+      (TagElement r@{ children }) -> ado
+        children' <- traverse intoElement children
+        in TagElement (r { children = children'})
+
       (ArgumentElement v) -> pure (ArgumentElement v)
       (NumberElement v) -> pure (NumberElement v)
       (DateElement v) -> pure (DateElement v)
       (TimeElement v) -> pure (TimeElement v)
       (PoundElement v) -> pure (PoundElement v)
-      (TagElement v) -> pure (TagElement v)
   sequence = sequenceDefault
 
 derive instance functorMFP :: Functor MessageFormatPattern
@@ -128,17 +151,41 @@ type BaseElement r
     | r
     }
 
+data StringOrElse r
+  = String_ String
+  | Else_ r
+
+instance readForeignStringOrElse :: ReadForeign a => ReadForeign (StringOrElse a) where
+  readImpl obj = (String_ <$> readImpl obj)
+                 <|> (Else_ <$> readImpl obj)
+
+instance writeForeignStringOrElse :: WriteForeign a => WriteForeign (StringOrElse a) where
+  writeImpl = case _ of
+    String_ s -> writeImpl s
+    Else_ c -> writeImpl c
+
+instance showStringOrElse :: Show a => Show (StringOrElse a) where
+  show = case _ of
+    String_ s -> "(String_ " <> show s <> ")"
+    Else_ c -> "(Else_ " <> show c <> ")"
+
 type SimpleFormatElement r
-  = BaseElement ( style :: Maybe r )
+  = BaseElement ( style :: Maybe (StringOrElse r))
 
-type NumberSkeleton
-  = Foreign -- TODO
+type NumberSkeleton =
+  { tokens :: Array NumberSkeletonToken
+  , location :: Maybe Location
+  }
 
-type DateSkeleton
-  = Foreign -- TODO
+type NumberSkeletonToken =
+  { stem :: String
+  , options :: Array String
+  }
 
-type TimeSkeleton
-  = Foreign -- TODO
+type DateTimeSkeleton =
+  { pattern :: String
+  , location :: Maybe Location
+  }
 
 type PluralOrSelectOption text
   = { value :: Array (MessageFormatElement text)
@@ -149,9 +196,9 @@ data MessageFormatElement text
   = LiteralElement { value :: text, location :: Maybe Location }
   | ArgumentElement { value :: String, location :: Maybe Location }
   | NumberElement (SimpleFormatElement NumberSkeleton)
-  | DateElement (SimpleFormatElement DateSkeleton)
-  | TimeElement (SimpleFormatElement TimeSkeleton)
-  | SelectElement (BaseElement ( options :: Object (PluralOrSelectOption text) ))
+  | DateElement (SimpleFormatElement DateTimeSkeleton)
+  | TimeElement (SimpleFormatElement DateTimeSkeleton)
+  | SelectElement (BaseElement (options :: Object (PluralOrSelectOption text) ))
   | PluralElement
     ( BaseElement
         ( options :: Object (PluralOrSelectOption text)
@@ -159,65 +206,57 @@ data MessageFormatElement text
         , pluralType :: String
         )
     )
-  | PoundElement Foreign
-  | TagElement Foreign
+  | PoundElement { location :: Maybe Location }
+  | TagElement { value :: String
+               , children :: Array (MessageFormatElement text)
+               , location :: Maybe Location
+               }
 
 instance showMFE :: Show a => Show (MessageFormatElement a) where
   show = case _ of
     (LiteralElement v) -> "(LiteralElement " <> show v <> ")"
     (ArgumentElement v) -> "(ArgumentElement " <> show v <> ")"
-    (NumberElement v) -> "(NumberElement " <> writeJSON v <> ")"
-    (DateElement v) -> "(DateElement " <> writeJSON v <> ")"
-    (TimeElement v) -> "(TimeElement " <> writeJSON v <> ")"
+    (NumberElement v) -> "(NumberElement " <> show v <> ")"
+    (DateElement v) -> "(DateElement " <> show v <> ")"
+    (TimeElement v) -> "(TimeElement " <> show v <> ")"
     (SelectElement v) -> "(SelectElement " <> show v <> ")"
     (PluralElement v) -> "(PluralElement " <> show v <> ")"
-    (PoundElement v) -> "(PoundElement " <> writeJSON v <> ")"
-    (TagElement v) -> "(TagElement " <> writeJSON v <> ")"
+    (PoundElement v) -> "(PoundElement " <> show v <> ")"
+    (TagElement v) -> "(TagElement " <> show v <> ")"
 
 derive instance functorElement :: Functor MessageFormatElement
 
 type_ = SProxy :: SProxy "type"
 
-tagObject :: forall a. Row.Lacks "type" a => Number -> Record a -> { type :: Number | a }
+tagObject :: forall a. Row.Lacks "type" a => TypeTag -> Record a -> { type :: TypeTag | a }
 tagObject s = Record.insert type_ s
 
 instance readForeignElement :: ReadForeign a => ReadForeign (MessageFormatElement a) where
   readImpl obj = do
-    tag :: { type :: Number } <- readImpl obj
+    tag :: { type :: TypeTag } <- readImpl obj
     case tag.type of
-      0.0 -> LiteralElement <$> readImpl obj
-      1.0 -> ArgumentElement <$> readImpl obj
-      2.0 -> NumberElement <$> readImpl obj
-      3.0 -> DateElement <$> readImpl obj
-      4.0 -> TimeElement <$> readImpl obj
-      5.0 -> SelectElement <$> readImpl obj
-      6.0 -> PluralElement <$> readImpl obj
-      7.0 -> PoundElement <$> readImpl obj
-      8.0 -> TagElement <$> readImpl obj
-      _ -> fail $ ForeignError "Bad tag reading Element"
+      t | t == type_literal -> LiteralElement <$> readImpl obj
+        | t == type_argument -> ArgumentElement <$> readImpl obj
+        | t == type_number -> NumberElement <$> readImpl obj
+        | t == type_date -> DateElement <$> readImpl obj
+        | t == type_time -> TimeElement <$> readImpl obj
+        | t == type_select -> SelectElement <$> readImpl obj
+        | t == type_plural -> PluralElement <$> readImpl obj
+        | t == type_pound -> PoundElement <$> readImpl obj
+        | t == type_tag -> TagElement <$> readImpl obj
+        | otherwise -> fail $ ForeignError "Bad tag reading Element"
 
 instance writeForeignElement :: WriteForeign a => WriteForeign (MessageFormatElement a) where
   writeImpl = case _ of
-    LiteralElement v -> tagObject 0.0 v # writeImpl
-    ArgumentElement v -> tagObject 1.0 v # writeImpl
-    NumberElement v -> v # writeImpl
-    DateElement v -> v # writeImpl
-    TimeElement v -> v # writeImpl
-    SelectElement v -> tagObject 5.0 v # writeImpl
-    PluralElement v -> tagObject 6.0 v # writeImpl
-    PoundElement v -> v # writeImpl
-    TagElement v -> v # writeImpl
-
-newtype Selector
-  = Selector String
-
-derive instance selectorNewtype :: Newtype Selector _
-
-instance readForeignSelector :: ReadForeign Selector where
-  readImpl obj = Selector <$> readImpl obj
-
-instance writeForeignSelector :: WriteForeign Selector where
-  writeImpl (Selector s) = writeImpl s
+    LiteralElement v -> tagObject type_literal v # writeImpl
+    ArgumentElement v -> tagObject type_argument v # writeImpl
+    NumberElement v -> tagObject type_number v # writeImpl
+    DateElement v -> tagObject type_date v # writeImpl
+    TimeElement v -> tagObject type_time v # writeImpl
+    SelectElement v -> tagObject type_select v # writeImpl
+    PluralElement v -> tagObject type_tag v # writeImpl
+    PoundElement v -> tagObject type_pound v # writeImpl
+    TagElement v -> tagObject type_tag v # writeImpl
 
 type LocationDetails
   = { offset :: Number
