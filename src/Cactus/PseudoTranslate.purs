@@ -1,6 +1,7 @@
 module Cactus.PseudoTranslate (pseudoTranslate) where
 
 import Prelude
+
 import Control.Monad.State (State, evalState, get, put)
 import Data.Array.NonEmpty (NonEmptyArray, (!!))
 import Data.Array.NonEmpty as NonEmpty
@@ -9,12 +10,13 @@ import Data.Char.Unicode (isAlpha, isLatin1)
 import Data.Foldable (sum)
 import Data.Int (rem)
 import Data.Maybe (Maybe(..), fromJust, fromMaybe)
+import Data.Newtype (wrap)
 import Data.String (CodePoint, Pattern(..))
 import Data.String.CodePoints as String
 import Data.String.CodeUnits as CodeUnits
 import Data.Traversable (traverse)
 import Data.Unfoldable (range, replicate)
-import FormatJS.IntlMessageFormat (MessageFormatPattern(..), MessageFormatElement(..))
+import FormatJS.IntlMessageFormat (Location, MessageFormatElement(..), MessageFormatPattern(..))
 import Partial.Unsafe (unsafePartial)
 import Random.LCG as LCG
 
@@ -45,7 +47,7 @@ bracketify (MessageFormatPattern s) = MessageFormatPattern parts
       <> s
       <> [ literal "]" ]
 
-  literal value = LiteralElement { value, location: Nothing }
+  literal value = LiteralElement { value, location: wrap $ Nothing }
 
 -- TODO: could use a static list here probably and it would be a bit
 --       less confusing

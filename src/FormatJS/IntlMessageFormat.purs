@@ -14,6 +14,7 @@ module FormatJS.IntlMessageFormat
   , BaseElement
   , PluralOrSelectOption
   , StringOrElse
+  , Options
   ) where
 
 import Prelude
@@ -23,16 +24,22 @@ import Control.Monad.Error.Class (class MonadThrow)
 import Control.Monad.Except (throwError)
 import Data.Either (either)
 import Data.Foldable (class Foldable, foldMap, foldrDefault, foldlDefault)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Eq (genericEq)
+import Data.Generic.Rep.Show (genericShow)
 import Data.List.NonEmpty (head)
-import Data.Maybe (Maybe)
-import Data.Newtype (class Newtype)
+import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Traversable (class Traversable, traverse, sequenceDefault)
+import Data.Tuple (Tuple)
 import Effect.Exception (Error, error, message)
 import Foreign (Foreign, ForeignError(..), MultipleErrors, fail, renderForeignError)
-import Foreign.Object (Object)
+import Foreign.Object (Object, fromFoldable)
 import Prim.Row as Row
 import Record as Record
-import Simple.JSON (class ReadForeign, class WriteForeign, E, read, readImpl, readJSON, write, writeImpl, writeJSON)
+import Simple.JSON (class ReadForeign, class WriteForeign, E, read, readImpl, readJSON, write, writeImpl)
+import Test.QuickCheck (class Arbitrary, arbitrary)
+import Test.QuickCheck.Arbitrary (genericArbitrary)
 import Type.Prelude (SProxy(..))
 
 collectErrors :: MultipleErrors -> Error
@@ -88,7 +95,13 @@ parse s = parseImpl s read throwAsForeign
 newtype MessageFormatPattern text
   = MessageFormatPattern (Array (MessageFormatElement text))
 
+derive instance newtypeMFP :: Newtype (MessageFormatPattern a) _
 derive newtype instance showMFP :: Show a => Show (MessageFormatPattern a)
+derive instance genericMFP :: Generic (MessageFormatPattern a) _
+instance eqMFP :: Eq a => Eq (MessageFormatPattern a) where
+  eq = genericEq
+  
+derive newtype instance arbitraryMFP :: Arbitrary a => Arbitrary (MessageFormatPattern a)
 
 instance foldableMFP :: Foldable MessageFormatPattern where
   foldMap f (MessageFormatPattern arr) = foldMap intoElement arr
@@ -101,7 +114,7 @@ instance foldableMFP :: Foldable MessageFormatPattern where
       _ -> mempty
 
     intoOptions :: forall r. { options :: _ | r } -> _
-    intoOptions r@{ options } = options # foldMap \item -> foldMap intoElement item.value
+    intoOptions r@{ options } = options # unwrap # foldMap \item -> foldMap intoElement item.value
   foldr f m = foldrDefault f m
   foldl f m = foldlDefault f m
 
@@ -115,18 +128,20 @@ instance traversableMFP :: Traversable MessageFormatPattern where
       PluralElement r@{ options } -> ado
         options' <-
           options
-            # traverse \r@{ value, location } -> ado
+            # unwrap
+            # traverse \r@{ value } -> ado
                 v <- traverse intoElement value
                 in r { value = v }
-        in PluralElement (r { options = options' })
+        in PluralElement (r { options = wrap options' })
       -- TODO: figure out how to remove this duplication
       SelectElement r@{ options } -> ado
         options' <-
           options
+            # unwrap
             # traverse \{ value, location } -> ado
                 v <- traverse intoElement value
                 in { value: v, location }
-        in SelectElement (r { options = options' })
+        in SelectElement (r { options = wrap options' })
 
       (TagElement r@{ children }) -> ado
         children' <- traverse intoElement children
@@ -147,13 +162,19 @@ derive newtype instance writeForeignMFP :: WriteForeign a => WriteForeign (Messa
 
 type BaseElement r
   = { value :: String
-    , location :: Maybe Location
+    , location :: Location
     | r
     }
 
 data StringOrElse r
   = String_ String
   | Else_ r
+
+
+derive instance genericSOE :: Generic (StringOrElse r) _
+instance eqSOE :: Eq r => Eq (StringOrElse r) where
+  eq = genericEq
+
 
 instance readForeignStringOrElse :: ReadForeign a => ReadForeign (StringOrElse a) where
   readImpl obj = (String_ <$> readImpl obj)
@@ -165,16 +186,17 @@ instance writeForeignStringOrElse :: WriteForeign a => WriteForeign (StringOrEls
     Else_ c -> writeImpl c
 
 instance showStringOrElse :: Show a => Show (StringOrElse a) where
-  show = case _ of
-    String_ s -> "(String_ " <> show s <> ")"
-    Else_ c -> "(Else_ " <> show c <> ")"
+  show = genericShow
+
+instance arbitraryStringOrElse :: Arbitrary a => Arbitrary (StringOrElse a) where
+  arbitrary = genericArbitrary
 
 type SimpleFormatElement r
   = BaseElement ( style :: Maybe (StringOrElse r))
 
 type NumberSkeleton =
   { tokens :: Array NumberSkeletonToken
-  , location :: Maybe Location
+  , location :: Location
   }
 
 type NumberSkeletonToken =
@@ -184,45 +206,64 @@ type NumberSkeletonToken =
 
 type DateTimeSkeleton =
   { pattern :: String
-  , location :: Maybe Location
+  , location :: Location
   }
 
 type PluralOrSelectOption text
   = { value :: Array (MessageFormatElement text)
-    , location :: Maybe Location
+    , location :: Location
     }
 
+newtype Options text =
+  Options (Object (PluralOrSelectOption text))
+
+derive instance genericOptions :: Generic (Options a) _
+derive instance newtypeOptions :: Newtype (Options a) _
+derive instance functorOptions :: Functor Options
+derive newtype instance readForeignOption :: ReadForeign a => ReadForeign (Options a)
+derive newtype instance writeForeignOption :: WriteForeign a => WriteForeign (Options a)
+instance showOptions :: Show a => Show (Options a) where
+  show = genericShow
+
+instance eqOptions :: Eq a => Eq (Options a) where
+  eq = genericEq
+
+instance arbitraryOptions :: Arbitrary a => Arbitrary (Options a) where
+  arbitrary = do
+    ls :: Array (Tuple String _) <- arbitrary
+    pure $ Options (fromFoldable ls)
+
+
 data MessageFormatElement text
-  = LiteralElement { value :: text, location :: Maybe Location }
-  | ArgumentElement { value :: String, location :: Maybe Location }
+  = LiteralElement { value :: text, location :: Location }
+  | ArgumentElement { value :: String, location :: Location }
   | NumberElement (SimpleFormatElement NumberSkeleton)
   | DateElement (SimpleFormatElement DateTimeSkeleton)
   | TimeElement (SimpleFormatElement DateTimeSkeleton)
-  | SelectElement (BaseElement (options :: Object (PluralOrSelectOption text) ))
+  | SelectElement (BaseElement (options :: Options text))
   | PluralElement
     ( BaseElement
-        ( options :: Object (PluralOrSelectOption text)
+        ( options :: Options text
         , offset :: Number
         , pluralType :: String
         )
     )
-  | PoundElement { location :: Maybe Location }
+  | PoundElement { location :: Location }
   | TagElement { value :: String
                , children :: Array (MessageFormatElement text)
-               , location :: Maybe Location
+               , location :: Location
                }
 
+derive instance genericMFE :: Generic (MessageFormatElement a) _
+    
 instance showMFE :: Show a => Show (MessageFormatElement a) where
-  show = case _ of
-    (LiteralElement v) -> "(LiteralElement " <> show v <> ")"
-    (ArgumentElement v) -> "(ArgumentElement " <> show v <> ")"
-    (NumberElement v) -> "(NumberElement " <> show v <> ")"
-    (DateElement v) -> "(DateElement " <> show v <> ")"
-    (TimeElement v) -> "(TimeElement " <> show v <> ")"
-    (SelectElement v) -> "(SelectElement " <> show v <> ")"
-    (PluralElement v) -> "(PluralElement " <> show v <> ")"
-    (PoundElement v) -> "(PoundElement " <> show v <> ")"
-    (TagElement v) -> "(TagElement " <> show v <> ")"
+  show = genericShow
+
+instance eq :: Eq a => Eq (MessageFormatElement a) where
+  eq = genericEq
+
+instance arbitraryMFE :: Arbitrary a => Arbitrary (MessageFormatElement a) where
+  arbitrary = genericArbitrary
 
 derive instance functorElement :: Functor MessageFormatElement
 
@@ -264,7 +305,21 @@ type LocationDetails
     , column :: Number
     }
 
-type Location
-  = { start :: LocationDetails
-    , end :: LocationDetails
-    }
+newtype Location
+  = Location (Maybe { start :: LocationDetails
+                    , end :: LocationDetails
+                    })
+    
+derive instance genericLocation :: Generic Location _
+derive instance newtypeLocation :: Newtype Location _
+derive newtype instance readForeignLocation :: ReadForeign Location
+derive newtype instance writeForeignLocation :: WriteForeign Location
+                        
+instance showLocation :: Show Location where
+  show = genericShow
+
+instance arbitraryLocation :: Arbitrary Location where
+  arbitrary = pure $ Location Nothing
+
+instance eqLocation :: Eq Location where
+  eq = genericEq

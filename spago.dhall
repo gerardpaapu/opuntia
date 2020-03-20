@@ -9,7 +9,9 @@ You can edit this file as you like.
   , "lcg"
   , "node-fs-aff"
   , "psci-support"
+  , "quickcheck"
   , "simple-json"
+  , "test-unit"
   , "unfoldable"
   , "unicode"
   ]
